@@ -1,0 +1,1 @@
+This is an *experimental* port of the Python [reference implementation](https://github.com/C2SP/C2SP/blob/main/det-keygen/ecdsa.py) of [C2SP](https://github.com/C2SP/C2SP)'s ECDSA [Deterministic Key Generation](https://c2sp.org/det-keygen).

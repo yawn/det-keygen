@@ -1,0 +1,19 @@
+[package]
+name = "det-keygen"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+
+[dependencies]
+crypto-bigint = { version = "0.6", default-features = false }
+ring = "0.17"
+
+[dev-dependencies]
+base64 = "0.22"
+elliptic-curve = { version = "0.13", features = ["pkcs8"] }
+p256 = "0.13"
+pkcs8 = "0.10"
+proptest = "1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

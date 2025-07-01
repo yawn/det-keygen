@@ -7,7 +7,7 @@ edition = "2024"
 
 [dependencies]
 crypto-bigint = { version = "0.6", default-features = false }
-ring = "0.17"
+ring = { version = "0.17", optional = true }
 
 [dev-dependencies]
 base64 = "0.22"
@@ -17,3 +17,7 @@ pkcs8 = "0.10"
 proptest = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+
+[features]
+default = ["ring"]
+ring = ["dep:ring"]

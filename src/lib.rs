@@ -1,17 +1,19 @@
 use crypto_bigint::{U256, Uint, Zero};
-use ring::hmac;
+
+type Tag = [u8; 256 / 8];
 
 pub trait Curve {
-    const PS: &'static [u8];
-    const RLEN: usize;
+    const LEN: usize;
+    const PERSONALIZATION_STRING: &'static [u8];
+
     type Output;
 
     fn generate(temp: &[u8]) -> Option<Self::Output>;
 }
 
 pub struct Keygen<C: Curve> {
-    k: hmac::Tag,
-    v: hmac::Tag,
+    k: Tag,
+    v: Tag,
     _phantom: std::marker::PhantomData<C>,
 }
 
@@ -22,14 +24,18 @@ impl<C: Curve> Keygen<C> {
 
         let k = hmac256(
             k.as_ref(),
-            [v.as_ref(), &[0u8], seed, C::PS].concat().as_ref(),
+            [v.as_slice(), &[0u8], seed, C::PERSONALIZATION_STRING]
+                .concat()
+                .as_ref(),
         );
 
         let v = hmac256(k.as_ref(), &v);
 
         let k = hmac256(
             k.as_ref(),
-            [v.as_ref(), &[1u8], seed, C::PS].concat().as_ref(),
+            [v.as_slice(), &[1u8], seed, C::PERSONALIZATION_STRING]
+                .concat()
+                .as_ref(),
         );
 
         let v = hmac256(k.as_ref(), v.as_ref());
@@ -44,7 +50,7 @@ impl<C: Curve> Keygen<C> {
     fn candidate(&mut self) -> Vec<u8> {
         let mut temp = vec![];
 
-        while temp.len() < C::RLEN {
+        while temp.len() < C::LEN {
             self.v = hmac256(self.k.as_ref(), self.v.as_ref());
             temp.extend_from_slice(self.v.as_ref());
         }
@@ -58,8 +64,11 @@ impl<C: Curve> Keygen<C> {
 
         res.unwrap_or_else(|| {
             // try once more
-            self.k = hmac256(self.k.as_ref(), [self.v.as_ref(), &[0u8]].concat().as_ref());
-            self.v = hmac256(self.k.as_ref(), self.v.as_ref());
+            self.k = hmac256(
+                self.k.as_ref(),
+                [self.v.as_slice(), &[0u8]].concat().as_ref(),
+            );
+            self.v = hmac256(self.k.as_slice(), self.v.as_ref());
 
             let temp = self.candidate();
             C::generate(&temp).unwrap()
@@ -70,10 +79,10 @@ impl<C: Curve> Keygen<C> {
 pub struct P256 {}
 
 impl Curve for P256 {
-    const PS: &'static [u8] = b"det ECDSA key gen P-256";
-    const RLEN: usize = 32;
+    const PERSONALIZATION_STRING: &'static [u8] = b"det ECDSA key gen P-256";
+    const LEN: usize = 32;
 
-    type Output = [u8; Self::RLEN];
+    type Output = [u8; Self::LEN];
 
     fn generate(temp: &[u8]) -> Option<Self::Output> {
         const N: U256 =
@@ -102,9 +111,15 @@ fn bits2int<const LIMBS: usize>(data: &[u8], qlen: usize) -> Uint<LIMBS> {
     x
 }
 
-fn hmac256(k: &[u8], v: &[u8]) -> hmac::Tag {
+#[cfg(feature = "ring")]
+fn hmac256(k: &[u8], v: &[u8]) -> Tag {
+    use ring::hmac;
+
     let k = hmac::Key::new(hmac::HMAC_SHA256, k);
     hmac::sign(&k, v)
+        .as_ref()
+        .try_into()
+        .expect("tag larger then 256 bits")
 }
 
 #[cfg(test)]
@@ -116,7 +131,7 @@ mod test {
     use base64::{Engine as _, engine::general_purpose};
     use p256::SecretKey;
     use pkcs8::EncodePrivateKey;
-    use proptest::{prelude::*, test_runner::Config};
+    use proptest::prelude::*;
     use ring::{
         rand::SystemRandom,
         signature::{
@@ -168,7 +183,6 @@ mod test {
 
             let _sig = public_key.verify(MSG, signature.as_ref()).unwrap();
         }
-
     }
 
     #[test]

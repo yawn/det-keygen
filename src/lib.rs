@@ -1,16 +1,44 @@
+//! # det-keygen
+//!
+//! This crate implements an *experimental* port of the Python [reference implementation](https://github.com/C2SP/C2SP/blob/main/det-keygen/ecdsa.py) of [C2SP](https://github.com/C2SP/C2SP)'s ECDSA [Deterministic Key Generation](https://c2sp.org/det-keygen).
+//!
+//! This specification enables the derivation of ECDSA private keys from arbitrary seeds (using FIPS 186-5 methods only) which
+//! should contain at least 192 bits of entropy.
+//! # Examples
+//!
+//! ```
+//! // Generate a P-256 private key based on a 160-bit seed
+//!
+//! use det_keygen::{Keygen, P256};
+//!
+//! let seed = b"When in doubt, don't";
+//!
+//! let keygen = Keygen::<P256>::new(seed);
+//! let key = keygen.generate();
+//! ```
+
 use crypto_bigint::{U256, Uint, Zero};
 
+/// Tag represents a 256-bit hmac tag.
 type Tag = [u8; 256 / 8];
 
+/// Curve describes an implementation independent description of an elliptic curve.
 pub trait Curve {
+    /// Length of the curve's field element in bytes.
     const LEN: usize;
+
+    /// Personalization string used in the key generation process.
     const PERSONALIZATION_STRING: &'static [u8];
 
+    // FIXME: replace with with hybrid-array as soon as RFC2532 becomes stable
+    /// Private key output of this curve.
     type Output;
 
+    /// Generate a key pair from a seed.
     fn generate(temp: &[u8]) -> Option<Self::Output>;
 }
 
+/// Keygen derives a key for a curve following the c2sp.org/det-keygen.
 pub struct Keygen<C: Curve> {
     k: Tag,
     v: Tag,
@@ -18,6 +46,7 @@ pub struct Keygen<C: Curve> {
 }
 
 impl<C: Curve> Keygen<C> {
+    /// Instantiate the key generation process. Seed must be at least 128-bits long with 160-bit of entropy preferred.
     pub fn new(seed: &[u8]) -> Self {
         let k = [0; 256 / 8];
         let v = [1; 256 / 8];
@@ -47,6 +76,7 @@ impl<C: Curve> Keygen<C> {
         }
     }
 
+    #[doc(hidden)]
     fn candidate(&mut self) -> Vec<u8> {
         let mut temp = vec![];
 
@@ -58,6 +88,7 @@ impl<C: Curve> Keygen<C> {
         temp
     }
 
+    /// Generate the Curve output.
     pub fn generate(mut self) -> C::Output {
         let temp = self.candidate();
         let res = C::generate(&temp);
@@ -76,6 +107,7 @@ impl<C: Curve> Keygen<C> {
     }
 }
 
+/// P-256 Curve implementation.
 pub struct P256 {}
 
 impl Curve for P256 {

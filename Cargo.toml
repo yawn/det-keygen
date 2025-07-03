@@ -1,7 +1,10 @@
 [package]
-name = "det-keygen"
-version = "0.1.0"
+description = "Derivation of ECDSA private keys from arbitrary seeds, using FIPS 186-5 methods only"
 edition = "2024"
+license-file = "LICENSE"
+name = "det-keygen"
+repository = "https://github.com/yawn/det-keygen"
+version = "0.1.0"
 
 [lib]
 
